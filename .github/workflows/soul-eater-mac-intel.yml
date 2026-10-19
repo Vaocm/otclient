@@ -1,0 +1,147 @@
+name: Soul Eater macOS client (Intel)
+
+on:
+  workflow_dispatch:
+    inputs:
+      client_url:
+        description: "Windows client archive to take the game files from"
+        required: false
+        default: "https://soul-eater.com/client-files/SoulEater-Client.rar"
+
+permissions:
+  contents: write
+
+env:
+  CMAKE_BUILD_PARALLEL_LEVEL: 3
+  MAKEFLAGS: "-j 3"
+  VCPKG_OSX_DEPLOYMENT_TARGET: "10.15"
+  MACOSX_DEPLOYMENT_TARGET: "10.15"
+
+jobs:
+  build:
+    name: Build Soul Eater (macOS Intel x86_64)
+    runs-on: macos-15-intel
+    timeout-minutes: 240
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get vcpkg commit ID
+        id: vcpkg-step
+        run: |
+          vcpkgCommitId=$(grep '.builtin-baseline' vcpkg.json | awk -F: '{print $2}' | tr -d '," ')
+          echo "vcpkgGitCommitId=$vcpkgCommitId" >> $GITHUB_OUTPUT
+
+      - name: Compute vcpkg.json hash
+        id: hash
+        run: |
+          hash=$(shasum -a 256 vcpkg.json | awk '{print toupper($1)}')
+          echo "hash=$hash" >> $GITHUB_OUTPUT
+
+      - name: Cache vcpkg binary artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/vcpkg/archives
+            ${{ github.workspace }}/vcpkg/downloads
+            ${{ github.workspace }}/vcpkg/installed
+            ${{ github.workspace }}/vcpkg/buildtrees
+          key: vcpkg-souleater-macos-intel-${{ steps.hash.outputs.hash }}
+          restore-keys: |
+            vcpkg-souleater-macos-intel-
+
+      - name: Setup Python
+        id: python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@a400452f634fe49e9f18d388aeb1809dcc642136
+        env:
+          VCPKG_PYTHON3: ${{ steps.python.outputs.python-path }}
+        with:
+          vcpkgGitCommitId: ${{ steps.vcpkg-step.outputs.vcpkgGitCommitId }}
+          vcpkgJsonGlob: 'vcpkg.json'
+
+      - name: Install CMake and Ninja
+        uses: lukka/get-cmake@v4.3.4
+
+      - name: Configure and build
+        env:
+          VCPKG_TARGET_TRIPLET: x64-osx
+        run: |
+          cmake -G Ninja -S . -B build-mac \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
+            -DVCPKG_TARGET_TRIPLET="${VCPKG_TARGET_TRIPLET}" \
+            -DTOGGLE_BIN_FOLDER=ON \
+            -DOPTIONS_ENABLE_IPO=OFF \
+            -DOTCLIENT_BUILD_TESTS=OFF \
+            -DCMAKE_CXX_FLAGS_RELEASE="-O2 -DNDEBUG -D_LIBCPP_DISABLE_AVAILABILITY" \
+            -DCMAKE_C_FLAGS_RELEASE="-O2 -DNDEBUG" \
+            -DTOGGLE_BOT_PROTECTION=OFF \
+            -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 \
+            -DVCPKG_OSX_DEPLOYMENT_TARGET=10.15
+          cmake --build build-mac --target otclient
+
+      - name: Download Soul Eater game files
+        run: |
+          mkdir -p dl extracted
+          curl -fL --retry 3 -o dl/client.rar "${{ inputs.client_url || 'https://soul-eater.com/client-files/SoulEater-Client.rar' }}"
+          ls -l dl
+          brew install unar
+          unar -q -o extracted dl/client.rar
+          INIT=$(find extracted -name init.lua -not -path '*/modules/*' | head -1)
+          test -n "$INIT" || { echo "init.lua not found in archive"; exit 1; }
+          echo "CLIENT_DIR=$(dirname "$INIT")" >> $GITHUB_ENV
+
+      - name: Assemble Mac package
+        run: |
+          set -e
+          OUT="package/SoulEater"
+          mkdir -p "$OUT"
+          cp -R "$CLIENT_DIR"/. "$OUT"/
+          rm -f "$OUT"/*.exe "$OUT"/*.dll
+          cp build-mac/bin/OTClient.app/Contents/MacOS/OTClient "$OUT/SoulEater"
+          chmod +x "$OUT/SoulEater"
+          codesign --force --sign - "$OUT/SoulEater"
+          cat > "$OUT/Start Soul Eater.command" <<'CMD'
+          #!/bin/bash
+          cd "$(dirname "$0")"
+          xattr -cr . 2>/dev/null
+          chmod +x ./SoulEater
+          exec ./SoulEater
+          CMD
+          chmod +x "$OUT/Start Soul Eater.command"
+          cat > "$OUT/READ ME - MAC.txt" <<'TXT'
+          Soul Eater for Mac (Intel Macs)
+
+          1. Unzip this folder somewhere you can write (Documents or Desktop).
+          2. Double-click "Start Soul Eater.command".
+             If macOS says it cannot be opened: right-click it, choose Open, then Open again.
+             (One-time only. The client is not signed with a paid Apple developer account.)
+          3. The client updates itself every time you start it.
+          TXT
+          cd package
+          ditto -c -k --keepParent SoulEater SoulEater-Mac-Intel.zip
+          ls -l
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SoulEater-Mac-Intel
+          path: package/SoulEater-Mac-Intel.zip
+          if-no-files-found: error
+
+      - name: Publish download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete mac-intel-latest --yes --cleanup-tag -R "$GITHUB_REPOSITORY" || true
+          gh release create mac-intel-latest package/SoulEater-Mac-Intel.zip -R "$GITHUB_REPOSITORY" \
+            --title "Soul Eater for Mac Intel (latest)" \
+            --notes "Soul Eater macOS client (Intel). Built from the same client version as the Windows download."
