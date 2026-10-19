@@ -1,4 +1,4 @@
-name: Soul Eater macOS client
+name: Soul Eater macOS client (Universal)
 
 on:
   workflow_dispatch:
@@ -17,8 +17,20 @@ env:
 
 jobs:
   build:
-    name: Build Soul Eater (macOS arm64)
-    runs-on: macos-15
+    name: Build ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: arm64
+            os: macos-15
+            triplet: arm64-osx
+            target: "11.0"
+          - arch: x86_64
+            os: macos-15-intel
+            triplet: x64-osx
+            target: "10.15"
     timeout-minutes: 240
     steps:
       - name: Checkout repository
@@ -46,9 +58,9 @@ jobs:
             ${{ github.workspace }}/vcpkg/downloads
             ${{ github.workspace }}/vcpkg/installed
             ${{ github.workspace }}/vcpkg/buildtrees
-          key: vcpkg-souleater-macos-${{ steps.hash.outputs.hash }}
+          key: vcpkg-souleater-macos-${{ matrix.arch }}-${{ steps.hash.outputs.hash }}
           restore-keys: |
-            vcpkg-souleater-macos-
+            vcpkg-souleater-macos-${{ matrix.arch }}-
 
       - name: Setup Python
         id: python
@@ -69,7 +81,9 @@ jobs:
 
       - name: Configure and build
         env:
-          VCPKG_TARGET_TRIPLET: arm64-osx
+          VCPKG_TARGET_TRIPLET: ${{ matrix.triplet }}
+          VCPKG_OSX_DEPLOYMENT_TARGET: ${{ matrix.target }}
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.target }}
         run: |
           cmake -G Ninja -S . -B build-mac \
             -DCMAKE_BUILD_TYPE=Release \
@@ -78,11 +92,36 @@ jobs:
             -DTOGGLE_BIN_FOLDER=ON \
             -DOPTIONS_ENABLE_IPO=OFF \
             -DOTCLIENT_BUILD_TESTS=OFF \
-            -DCMAKE_CXX_FLAGS_RELEASE="-O2 -DNDEBUG" \
+            -DCMAKE_CXX_FLAGS_RELEASE="-O2 -DNDEBUG -D_LIBCPP_DISABLE_AVAILABILITY" \
             -DCMAKE_C_FLAGS_RELEASE="-O2 -DNDEBUG" \
-            -DTOGGLE_BOT_PROTECTION=OFF
+            -DTOGGLE_BOT_PROTECTION=OFF \
+            -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=${{ matrix.target }} \
+            -DVCPKG_OSX_DEPLOYMENT_TARGET=${{ matrix.target }}
           cmake --build build-mac --target otclient
 
+      - name: Show binary
+        run: |
+          file build-mac/bin/OTClient.app/Contents/MacOS/OTClient
+          otool -l build-mac/bin/OTClient.app/Contents/MacOS/OTClient | grep -A3 LC_BUILD_VERSION || true
+          otool -L build-mac/bin/OTClient.app/Contents/MacOS/OTClient
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ matrix.arch }}
+          path: build-mac/bin/OTClient.app/Contents/MacOS/OTClient
+          if-no-files-found: error
+
+  package:
+    name: Package universal app
+    needs: build
+    runs-on: macos-15
+    steps:
+      - name: Download binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bin-*
       - name: Download Soul Eater game files
         run: |
           mkdir -p dl extracted
@@ -101,7 +140,8 @@ jobs:
           mkdir -p "$OUT"
           cp -R "$CLIENT_DIR"/. "$OUT"/
           rm -f "$OUT"/*.exe "$OUT"/*.dll
-          cp build-mac/bin/OTClient.app/Contents/MacOS/OTClient "$OUT/SoulEater"
+          lipo -create bin-arm64/OTClient bin-x86_64/OTClient -output "$OUT/SoulEater"
+          lipo -info "$OUT/SoulEater"
           chmod +x "$OUT/SoulEater"
           codesign --force --sign - "$OUT/SoulEater"
           cat > "$OUT/Start Soul Eater.command" <<'CMD'
@@ -113,7 +153,7 @@ jobs:
           CMD
           chmod +x "$OUT/Start Soul Eater.command"
           cat > "$OUT/READ ME - MAC.txt" <<'TXT'
-          Soul Eater for Mac (Apple Silicon: M1, M2, M3 and newer)
+          Soul Eater for Mac (all Macs: Intel and Apple Silicon)
 
           1. Unzip this folder somewhere you can write (Documents or Desktop).
           2. Double-click "Start Soul Eater.command".
@@ -139,4 +179,4 @@ jobs:
           gh release delete mac-latest --yes --cleanup-tag -R "$GITHUB_REPOSITORY" || true
           gh release create mac-latest package/SoulEater-Mac.zip -R "$GITHUB_REPOSITORY" \
             --title "Soul Eater for Mac (latest)" \
-            --notes "Soul Eater macOS client (Apple Silicon). Built from the same client version as the Windows download."
+            --notes "Soul Eater macOS client (Intel + Apple Silicon). Built from the same client version as the Windows download."
