@@ -79,6 +79,13 @@ jobs:
       - name: Install CMake and Ninja
         uses: lukka/get-cmake@v4.3.4
 
+      - name: Hide Homebrew libraries (the Intel runner finds a libpng without APNG)
+        run: |
+          brew uninstall --ignore-dependencies --force libpng || true
+          sudo mv /usr/local/include/png.h /usr/local/include/png.h.off 2>/dev/null || true
+          sudo mv /usr/local/include/pngconf.h /usr/local/include/pngconf.h.off 2>/dev/null || true
+          sudo mv /usr/local/include/libpng16 /usr/local/include/libpng16.off 2>/dev/null || true
+
       - name: Configure and build
         env:
           VCPKG_TARGET_TRIPLET: ${{ matrix.triplet }}
@@ -96,6 +103,7 @@ jobs:
             -DCMAKE_C_FLAGS_RELEASE="-O2 -DNDEBUG" \
             -DTOGGLE_BOT_PROTECTION=OFF \
             -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} \
+            -DCMAKE_IGNORE_PREFIX_PATH=/usr/local \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=${{ matrix.target }} \
             -DVCPKG_OSX_DEPLOYMENT_TARGET=${{ matrix.target }}
           cmake --build build-mac --target otclient
