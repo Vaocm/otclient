@@ -236,6 +236,17 @@
     _platformWindow->handleFocusChange(true);
 }
 
+- (void)windowDidChangeOcclusionState:(NSNotification*)notification {
+    if (!_platformWindow) return;
+    // window hidden (other Space, Mission Control, minimized): key-ups will never arrive here
+    NSWindow* win = (NSWindow*)[notification object];
+    if (!win) return;
+    if (!([win occlusionState] & NSWindowOcclusionStateVisible))
+        _platformWindow->handleFocusChange(false);
+    else if ([win isKeyWindow])
+        _platformWindow->handleFocusChange(true);
+}
+
 - (void)windowDidResignKey:(NSNotification*)notification {
     (void)notification;
     if (!_platformWindow) return;

@@ -94,6 +94,7 @@ public:
      * Pumps the event loop and dispatches pending events.
      */
     void poll() override;
+    void syncInputState();
 
     /** Swaps the OpenGL front and back buffers. */
     void swapBuffers() override;

@@ -413,6 +413,34 @@ void CocoaWindow::poll()
                                             dequeue:YES])) {
             [NSApp sendEvent:event];
         }
+
+        syncInputState();
+    }
+}
+
+// macOS does not always deliver key-up / mouse-up events (Spaces or Mission Control switches,
+// Command combos, gestures). A modifier or mouse button would then stay "held" and the game keeps
+// clicking or walking by itself. After the event queue is drained, compare our idea of what is held
+// with what the OS reports and release anything that is not really down.
+void CocoaWindow::syncInputState()
+{
+    if (!m_focused)
+        return;
+
+    const unsigned int mask = NSEventModifierFlagCommand | NSEventModifierFlagOption |
+                              NSEventModifierFlagControl | NSEventModifierFlagShift;
+    const unsigned int realModifiers = static_cast<unsigned int>([NSEvent modifierFlags]);
+    if ((realModifiers & mask) != (m_lastModifiers & mask))
+        handleFlagsChanged(realModifiers);
+
+    // Only act when the OS reports NO mouse button down at all. Ctrl+click and two-finger clicks are
+    // translated by macOS into a "right" button, so comparing button by button could cut a real click short.
+    if ([NSEvent pressedMouseButtons] == 0) {
+        const Fw::MouseButton buttons[] = { Fw::MouseLeftButton, Fw::MouseRightButton, Fw::MouseMidButton };
+        for (const Fw::MouseButton button : buttons) {
+            if (m_mouseButtonStates & (1u << button))
+                handleMouseButton(button, false, m_inputEvent.mousePos);
+        }
     }
 }
 
