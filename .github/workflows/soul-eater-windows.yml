@@ -1,0 +1,82 @@
+name: Soul Eater Windows client
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Windows x64
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 240
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      SCCACHE_DIR: ${{ github.workspace }}\.sccache
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Get vcpkg baseline
+        shell: pwsh
+        run: |
+          $json = Get-Content vcpkg.json -Raw | ConvertFrom-Json
+          "VCPKG_GIT_COMMIT_ID=$($json.'builtin-baseline')" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Remove Windows pre-installed MySQL
+        shell: pwsh
+        run: Remove-Item -Recurse -Force C:\mysql* -ErrorAction SilentlyContinue
+
+      - name: Prepare sccache directory
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force -Path $env:SCCACHE_DIR | Out-Null
+
+      - name: CCache
+        uses: hendrikmuhs/ccache-action@v1.2.23
+        with:
+          max-size: "1G"
+          variant: "sccache"
+          key: ccache-souleater-windows
+          restore-keys: |
+            ccache-souleater-windows
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitURL: "https://github.com/microsoft/vcpkg.git"
+          vcpkgGitCommitId: ${{ env.VCPKG_GIT_COMMIT_ID }}
+
+      - name: Run CMake
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: windows-release
+          buildPreset: windows-release
+          configurePresetAdditionalArgs: "['-DTOGGLE_BIN_FOLDER=ON', '-DOPTIONS_ENABLE_IPO=OFF', '-DOTCLIENT_BUILD_TESTS=OFF', '-DTOGGLE_BOT_PROTECTION=OFF']"
+
+      - name: Find the program
+        shell: pwsh
+        run: |
+          Get-ChildItem build/windows-release/bin -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
+          $exe = Get-ChildItem build/windows-release/bin -Filter *.exe | Select-Object -First 1
+          if (-not $exe) { throw "No .exe was built" }
+          New-Item -ItemType Directory -Force -Path package | Out-Null
+          Copy-Item $exe.FullName package/otclient_gl_x64.exe
+          Get-Item package/otclient_gl_x64.exe | Select-Object FullName, Length
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: SoulEater-Windows-exe
+          path: package/otclient_gl_x64.exe
+          if-no-files-found: error
+
+      - name: Publish download
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete windows-latest --yes --cleanup-tag -R "$GITHUB_REPOSITORY" || true
+          gh release create windows-latest package/otclient_gl_x64.exe -R "$GITHUB_REPOSITORY" \
+            --title "Soul Eater Windows program (latest)" \
+            --notes "otclient_gl_x64.exe built from the same source as the Mac client. Test it before giving it to players."
