@@ -52,7 +52,7 @@ jobs:
         with:
           configurePreset: windows-release
           buildPreset: windows-release
-          configurePresetAdditionalArgs: "['-DTOGGLE_BIN_FOLDER=ON', '-DOPTIONS_ENABLE_IPO=OFF', '-DOTCLIENT_BUILD_TESTS=OFF', '-DTOGGLE_BOT_PROTECTION=OFF']"
+          configurePresetAdditionalArgs: "['-DTOGGLE_BIN_FOLDER=ON', '-DOPTIONS_ENABLE_IPO=OFF', '-DOTCLIENT_BUILD_TESTS=OFF', '-DTOGGLE_BOT_PROTECTION=OFF', '-DCMAKE_BUILD_TYPE=Release']"
 
       - name: Find the program
         shell: pwsh
