@@ -61,14 +61,15 @@ jobs:
           $exe = Get-ChildItem build/windows-release/bin -Filter *.exe | Select-Object -First 1
           if (-not $exe) { throw "No .exe was built" }
           New-Item -ItemType Directory -Force -Path package | Out-Null
-          Copy-Item $exe.FullName package/otclient_gl_x64.exe
-          Get-Item package/otclient_gl_x64.exe | Select-Object FullName, Length
+          Copy-Item $exe.FullName "package/Soul Eater Launcher.exe"
+          Compress-Archive -Path "package/Soul Eater Launcher.exe" -DestinationPath package/SoulEater-Windows.zip -Force
+          Get-ChildItem package | Select-Object Name, Length
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: SoulEater-Windows-exe
-          path: package/otclient_gl_x64.exe
+          path: package/SoulEater-Windows.zip
           if-no-files-found: error
 
       - name: Publish download
@@ -77,6 +78,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete windows-latest --yes --cleanup-tag -R "$GITHUB_REPOSITORY" || true
-          gh release create windows-latest package/otclient_gl_x64.exe -R "$GITHUB_REPOSITORY" \
+          gh release create windows-latest package/SoulEater-Windows.zip -R "$GITHUB_REPOSITORY" \
             --title "Soul Eater Windows program (latest)" \
-            --notes "otclient_gl_x64.exe built from the same source as the Mac client. Test it before giving it to players."
+            --notes "Zip with Soul Eater Launcher.exe built from the same source as the Mac client. Test it before giving it to players."
