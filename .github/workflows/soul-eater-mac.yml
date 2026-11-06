@@ -126,6 +126,11 @@ jobs:
     needs: build
     runs-on: macos-15-intel
     steps:
+      - name: Checkout (for the app icon)
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: cmake/icon
+
       - name: Download binaries
         uses: actions/download-artifact@v4
         with:
@@ -164,11 +169,42 @@ jobs:
           Soul Eater for Mac (all Macs: Intel and Apple Silicon)
 
           1. Unzip this folder somewhere you can write (Documents or Desktop).
-          2. Double-click "Start Soul Eater.command".
+          2. Double-click "Soul Eater" (the app with the blue S icon).
+             If it does not open, use "Start Soul Eater.command" instead.
              If macOS says it cannot be opened: right-click it, choose Open, then Open again.
              (One-time only. The client is not signed with a paid Apple developer account.)
           3. The client updates itself every time you start it.
           TXT
+          # Double-click app: starts the game without opening a Terminal window
+          APP="$OUT/Soul Eater.app"
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+          cp "$GITHUB_WORKSPACE/cmake/icon/SoulEater.icns" "$APP/Contents/Resources/SoulEater.icns"
+          cat > "$APP/Contents/MacOS/SoulEaterLauncher" <<'LAUNCH'
+          #!/bin/bash
+          DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+          cd "$DIR" || exit 1
+          xattr -cr . 2>/dev/null
+          chmod +x ./SoulEater
+          exec ./SoulEater
+          LAUNCH
+          chmod +x "$APP/Contents/MacOS/SoulEaterLauncher"
+          cat > "$APP/Contents/Info.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+          <key>CFBundleExecutable</key><string>SoulEaterLauncher</string>
+          <key>CFBundleIdentifier</key><string>com.souleater.launcher</string>
+          <key>CFBundleName</key><string>Soul Eater</string>
+          <key>CFBundleDisplayName</key><string>Soul Eater</string>
+          <key>CFBundleIconFile</key><string>SoulEater</string>
+          <key>CFBundlePackageType</key><string>APPL</string>
+          <key>CFBundleVersion</key><string>1</string>
+          <key>CFBundleShortVersionString</key><string>1.0</string>
+          <key>LSMinimumSystemVersion</key><string>10.15</string>
+          <key>NSHighResolutionCapable</key><true/>
+          </dict></plist>
+          PLIST
+          codesign --force --sign - "$APP" || true
           cd package
           ditto -c -k --keepParent SoulEater SoulEater-Mac.zip
           ls -l
