@@ -212,6 +212,7 @@ private:
     }
 
     Rect calcFramebufferSource(const Size& destSize);
+    Point clampWalkOffsetToKnownMap(const Point& walkOffset) const;
 
     Point transformPositionTo2D(const Position& position) const {
         return transformPositionTo2D(position, m_posInfo.camera);

@@ -691,6 +691,7 @@ void MapView::onKeyRelease(const InputEvent& inputEvent)
 void MapView::onMapCenterChange(const Position& /*newPos*/, const Position& /*oldPos*/)
 {
     requestUpdateVisibleTiles();
+    requestUpdateMapPosInfo(); // the clamp of the camera depends on the server position
 }
 
 void MapView::lockFirstVisibleFloor(const uint8_t firstVisibleFloor)
@@ -846,11 +847,52 @@ void MapView::move(const int32_t x, const int32_t y)
     onCameraMove(m_moveOffset);
 }
 
+// Soul Eater: the server only sends a fixed rectangle of map around the confirmed (server) position. A fast or lagging
+// local player walks ahead of that position (pre-walk), so the camera could scroll past the end of the known map and show
+// an empty strip (the "blue/black frame" at the top/left edge). Keep the camera inside the known map instead: it simply
+// waits for the next map rows and catches up as soon as they arrive.
+Point MapView::clampWalkOffsetToKnownMap(const Point& walkOffset) const
+{
+    if (!m_followingCreature || !m_followingCreature->isLocalPlayer())
+        return walkOffset;
+
+    const Position cam = m_followingCreature->getPosition();
+    const Position central = g_map.getCentralPosition();
+    if (!cam.isMapPosition() || !central.isMapPosition() || cam.z != central.z)
+        return walkOffset;
+
+    const int dx = cam.x - central.x;
+    const int dy = cam.y - central.y;
+    if (std::abs(dx) > 3 || std::abs(dy) > 3)
+        return walkOffset;
+
+    const int ts = g_gameConfig.getSpriteSize();
+    const auto aware = g_map.getAwareRange();
+    const int halfW = (m_visibleDimension.width() - 1) / 2;
+    const int halfH = (m_visibleDimension.height() - 1) / 2;
+
+    // camera centre (pixels, relative to the server tile) must keep the whole view inside the known rectangle
+    const auto clampAxis = [ts](const int tileDelta, const int offset, const int known, const int knownAfter, const int half) {
+        const int minP = (half - known) * ts;
+        const int maxP = (knownAfter - half) * ts;
+        if (minP > maxP)
+            return offset; // view larger than the known map: nothing to protect
+        const int p = std::clamp(tileDelta * ts + offset, minP, maxP);
+        // never leave the pre-drawn margin of the frame buffer
+        return std::clamp(p - tileDelta * ts, -ts, ts);
+    };
+
+    return {
+        clampAxis(dx, walkOffset.x, aware.left, aware.right, halfW),
+        clampAxis(dy, walkOffset.y, aware.top, aware.bottom, halfH)
+    };
+}
+
 Rect MapView::calcFramebufferSource(const Size& destSize)
 {
     Point drawOffset = ((m_drawDimension - m_visibleDimension - Size(1)).toPoint() / 2) * m_tileSize;
     if (isFollowingCreature())
-        drawOffset += m_followingCreature->getWalkOffset() * m_pool->getScaleFactor();
+        drawOffset += clampWalkOffsetToKnownMap(m_followingCreature->getWalkOffset()) * m_pool->getScaleFactor();
     else if (!m_moveOffset.isNull())
         drawOffset += m_moveOffset * m_pool->getScaleFactor();
 
