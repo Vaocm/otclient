@@ -59,7 +59,10 @@ void UIMap::draw(const DrawPoolType drawPane) {
         }, [this] {
             m_mapView->registerEvents();
         }, m_mapView->m_posInfo.rect, m_mapView->m_posInfo.srcRect,
-           m_mapView->getCameraPosition().z == g_gameConfig.getMapSeaFloor() ? Color(0xFFA54C27U) : Color::black);
+           // Soul Eater: always black. The sea-blue background used on the ground floor showed up as a loud blue
+           // band at the screen edge whenever the camera walked ahead of the tiles the server had sent (fast
+           // characters / lag). Black is what the original client shows there.
+           Color::black);
 
         g_drawPool.preDraw(DrawPoolType::CREATURE_INFORMATION, [] {});
     } else if (drawPane == DrawPoolType::LIGHT) {
