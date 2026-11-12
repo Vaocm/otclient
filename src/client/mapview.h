@@ -122,20 +122,12 @@ public:
     void setAntiAliasingMode(Otc::AntialiasingMode mode);
 
     void onMouseMove(const Position& mousePos, bool isVirtualMove = false);
-    void updateMouseCursor(const Position& mousePos);
     void onKeyRelease(const InputEvent& inputEvent);
 
     void setLastMousePosition(const Position& mousePos) { m_mousePosition = mousePos; }
     const Position& getLastMousePosition() const { return m_mousePosition; }
 
-    void setDrawHighlightTarget(const bool enable)
-    {
-        if (m_drawHighlightTarget == enable)
-            return;
-
-        m_drawHighlightTarget = enable;
-        destroyHighlightTile();
-    }
+    void setDrawHighlightTarget(const bool enable) { m_drawHighlightTarget = enable; }
 
     void setFloorFading(const uint16_t value) { m_floorFading = value; }
 
@@ -204,7 +196,7 @@ private:
     uint8_t calcFirstVisibleFloor(bool checkLimitsFloorsView) const;
     uint8_t calcLastVisibleFloor() const;
 
-    void drawFloor(bool updateHover);
+    void drawFloor();
     void drawLights();
 
     bool canFloorFade() const { return m_floorViewMode == Otc::FADE && m_floorFading; }
@@ -258,7 +250,6 @@ private:
     Position m_customCameraPosition;
     Position m_lastCameraPosition;
     Position m_mousePosition;
-    Position m_highlightMousePosition;
     Position m_shaderPosition;
 
     std::array<AwareRange, Otc::InvalidDirection + 1> m_viewPortDirection;
@@ -276,7 +267,6 @@ private:
     bool m_follow{ true };
     bool m_drawingLight{ true };
     bool m_drawHarmony{ true };
-    bool m_highlightUpdatesEnabled{ false };
 
     bool m_fadeFinish{ false };
     bool m_autoViewMode{ false };
