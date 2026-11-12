@@ -465,9 +465,7 @@ void LocalPlayer::setInventoryItem(const Otc::InventorySlot inventory, const Ite
     if (m_inventoryItems[inventory] == item)
         return;
 
-    // must be a copy: binding a reference to the array element made it alias
-    // the assignment below, so Lua received the new item as "oldItem"
-    const ItemPtr oldItem = m_inventoryItems[inventory];
+    const auto& oldItem = m_inventoryItems[inventory];
     m_inventoryItems[inventory] = item;
 
     if (item && g_game.getFeature(Otc::GameThingClock) && item->getDurationTime() > 0
