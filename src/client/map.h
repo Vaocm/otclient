@@ -165,12 +165,12 @@ public:
 
     std::vector<CreaturePtr> getSpectators(const Position& centerPos, const bool multiFloor)
     {
-        return getSpectatorsInRangeEx(centerPos, multiFloor, m_awareRange.left, m_awareRange.right, m_awareRange.top, m_awareRange.bottom);
+        return [&] { const auto r = getVisibleAwareRange(); return getSpectatorsInRangeEx(centerPos, multiFloor, r.left, r.right, r.top, r.bottom); }();
     }
 
     std::vector<CreaturePtr> getSightSpectators(const Position& centerPos, const bool multiFloor)
     {
-        return getSpectatorsInRangeEx(centerPos, multiFloor, m_awareRange.left - 1, m_awareRange.right - 2, m_awareRange.top - 1, m_awareRange.bottom - 2);
+        return [&] { const auto r = getVisibleAwareRange(); return getSpectatorsInRangeEx(centerPos, multiFloor, r.left - 1, r.right - 2, r.top - 1, r.bottom - 2); }();
     }
 
     std::vector<CreaturePtr> getSpectatorsInRange(const Position& centerPos, const bool multiFloor, const int32_t xRange, const int32_t yRange)
@@ -205,6 +205,9 @@ public:
     void setAwareRange(const AwareRange& range);
     void resetAwareRange();
     AwareRange getAwareRange() const { return m_awareRange; }
+    // The standard-size part of the aware range. The server may send a wider margin (Soul Eater, packet 0x33) so the
+    // map never runs out while walking; gameplay information (spectators, battle list, sight, zoom) stays on this one.
+    AwareRange getVisibleAwareRange() const;
 
     Light getLight() const { return m_light; }
     Position getCentralPosition() { return m_centralPosition; }

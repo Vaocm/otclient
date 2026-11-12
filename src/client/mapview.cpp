@@ -542,8 +542,8 @@ void MapView::updateGeometry(const Size& visibleDimension)
         m_pool->getFrameBuffer()->resize(bufferSize);
     });
 
-    const uint8_t left = std::min<uint8_t>(g_map.getAwareRange().left, (m_drawDimension.width() / 2) - 1);
-    const uint8_t top = std::min<uint8_t>(g_map.getAwareRange().top, (m_drawDimension.height() / 2) - 1);
+    const uint8_t left = std::min<uint8_t>(g_map.getVisibleAwareRange().left, (m_drawDimension.width() / 2) - 1);
+    const uint8_t top = std::min<uint8_t>(g_map.getVisibleAwareRange().top, (m_drawDimension.height() / 2) - 1);
     const auto right = static_cast<uint8_t>(left + 1);
     const auto bottom = static_cast<uint8_t>(top + 1);
 
@@ -720,7 +720,7 @@ void MapView::setVisibleDimension(const Size& visibleDimension)
         return;
     }
 
-    const auto& awareRangeSize = Size(g_map.getAwareRange().left * 2, g_map.getAwareRange().top * 2);
+    const auto& awareRangeSize = Size(g_map.getVisibleAwareRange().left * 2, g_map.getVisibleAwareRange().top * 2);
 
     m_drawViewportEdge = m_forceDrawViewportEdge;
     if (visibleDimension.width() > awareRangeSize.width() || visibleDimension.height() > awareRangeSize.height()) {

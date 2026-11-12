@@ -850,6 +850,17 @@ void Map::resetAwareRange() {
     });
 }
 
+AwareRange Map::getVisibleAwareRange() const
+{
+    const auto vp = g_gameConfig.getMapViewPort();
+    return {
+        .left = std::min<uint8_t>(m_awareRange.left, static_cast<uint8_t>(vp.width())),
+        .top = std::min<uint8_t>(m_awareRange.top, static_cast<uint8_t>(vp.height())),
+        .right = std::min<uint8_t>(m_awareRange.right, static_cast<uint8_t>(vp.width() + 1)),
+        .bottom = std::min<uint8_t>(m_awareRange.bottom, static_cast<uint8_t>(vp.height() + 1))
+    };
+}
+
 uint8_t Map::getFirstAwareFloor() const
 {
     if (m_centralPosition.z <= g_gameConfig.getMapSeaFloor())

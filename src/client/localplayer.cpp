@@ -621,7 +621,8 @@ void LocalPlayer::setResourceBalance(const Otc::ResourceTypes_t type, const uint
 
 bool LocalPlayer::hasSight(const Position& pos)
 {
-    return m_position.isInRange(pos, g_map.getAwareRange().left - 1, g_map.getAwareRange().top - 1);
+    const auto range = g_map.getVisibleAwareRange();
+    return m_position.isInRange(pos, range.left - 1, range.top - 1);
 }
 
 void LocalPlayer::setFlatDamageHealing(uint16_t flatBonus)

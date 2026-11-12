@@ -59,7 +59,8 @@ void ProtocolGame::sendLoginPacket(const uint32_t challengeTimestamp, const uint
         msg->addU32(g_game.getClientVersion());
 
     if (g_game.getClientVersion() >= 1281) {
-        msg->addString(std::to_string(g_game.getClientVersion()));
+        // "sewide1": this client understands the wider Soul Eater map area (server confirms with packet 0x33)
+        msg->addString(std::to_string(g_game.getClientVersion()) + "|sewide1");
     }
 
     if (g_game.getClientVersion() >= 1334) {
