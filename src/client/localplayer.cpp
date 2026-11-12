@@ -109,7 +109,10 @@ void LocalPlayer::registerAdjustInvalidPosEvent() {
         m_preWalks.clear();
         g_game.resetMapUpdatedAt();
         m_adjustInvalidPosEvent = nullptr;
-    }, std::min<int>(std::max<int>(getStepDuration(), g_game.getPing()) + 100, 1000));
+        // Soul Eater: a fast character has very short steps, so the old window (step/ping + 100 ms) closed before a slightly
+        // late server confirmation arrived, the predicted steps were dropped and the character stepped back and forward again.
+        // Give the server much more time before the prediction is given up (a real rejection still arrives as cancelWalk).
+    }, std::min<int>(std::max<int>(getStepDuration(), g_game.getPing()) * 2 + 400, 1500));
 }
 
 void LocalPlayer::cancelAdjustInvalidPosEvent() {
