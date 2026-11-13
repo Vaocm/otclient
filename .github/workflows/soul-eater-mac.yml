@@ -220,7 +220,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete mac-latest --yes --cleanup-tag -R "$GITHUB_REPOSITORY" || true
-          gh release create mac-latest package/SoulEater-Mac.zip -R "$GITHUB_REPOSITORY" \
+          gh release delete mac-wide --yes --cleanup-tag -R "$GITHUB_REPOSITORY" || true
+          gh release create mac-wide package/SoulEater-Mac.zip -R "$GITHUB_REPOSITORY" \
             --title "Soul Eater for Mac (latest)" \
             --notes "Soul Eater macOS client (Intel + Apple Silicon). Built from the same client version as the Windows download."
